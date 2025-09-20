@@ -1,0 +1,13 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Логи
+logs/
+*.log
+
+# Виртуальное окружение
+venv/
+
+# Секреты
+config/secrets.env
