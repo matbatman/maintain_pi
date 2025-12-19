@@ -7,7 +7,8 @@
 - Уведомления в Telegram при превышении лимитов  
 - Логирование событий в `monitor.log`
 
-## 📁 Структура проекта  
+## 📁 Структура проекта 
+```
 pi-monitor-bot/
 ├── config/secrets.env
 ├── scripts/
@@ -17,6 +18,7 @@ pi-monitor-bot/
 ├── logs/monitor.log
 ├── main.py
 └── README.md
+```
 
 ## ⚙️ Установка  
 1. Клонируй репозиторий:  
