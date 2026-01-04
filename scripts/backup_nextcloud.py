@@ -160,6 +160,7 @@ def backup_nextcloud():
     rotate_backups()
 
     logger.info("=== Бэкап Nextcloud завершён ===")
+    return backup_path
 
 
 if __name__ == "__main__":
