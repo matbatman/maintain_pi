@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from telegram import Update
 
-#from scripts.check_weather import send_daily_weather
+from scripts.check_weather import send_daily_weather
 from scripts.check_temp import check_temperature
 from scripts.check_disk import check_disk_usage
 from scripts.check_memory import check_memory_usage
@@ -48,7 +48,7 @@ def log(message, path=LOG_PATH, max_lines=1000):
 # 🔧 Основной мониторинг
 def main():
     # 🌧️ Проверка прогноза по городам
-    #send_daily_weather(TOKEN, CHAT_ID)
+    send_daily_weather(TOKEN, CHAT_ID)
 
 
     # 🌡️ Температура
@@ -58,13 +58,13 @@ def main():
         send_alert(TOKEN, CHAT_ID, f"🌡️ Температура {temp}°C превышает лимит {TEMP_LIMIT}°C")
 
     # 📦 Бэкап Nextcloud
-    try:
-        backup_path = backup_nextcloud()
-        log(f"📦 Бэкап Nextcloud создан: {backup_path}")
-        send_alert(TOKEN, CHAT_ID, f"📦 Бэкап Nextcloud готов: {backup_path}")
-    except Exception as e:
-        log(f"❌ Ошибка бэкапа Nextcloud: {e}")
-        send_alert(TOKEN, CHAT_ID, f"❌ Ошибка бэкапа Nextcloud: {e}")
+    #try:
+    #    backup_path = backup_nextcloud()
+    #    log(f"📦 Бэкап Nextcloud создан: {backup_path}")
+    #    send_alert(TOKEN, CHAT_ID, f"📦 Бэкап Nextcloud готов: {backup_path}")
+    #except Exception as e:
+    #    log(f"❌ Ошибка бэкапа Nextcloud: {e}")
+    #    send_alert(TOKEN, CHAT_ID, f"❌ Ошибка бэкапа Nextcloud: {e}")
 
     # 💾 Диск
     disk_alert, disk_percent = check_disk_usage(DISK_LIMIT)
