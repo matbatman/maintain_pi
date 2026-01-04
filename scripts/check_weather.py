@@ -1,13 +1,14 @@
 import requests
-from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, time
 import os
 import sys
 
+# Добавляем путь к notify
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from scripts.notify import send_alert
 
 ALERT_DIR = "/home/davidmatyushin/Documents/pi/maintain_pi"
+
 
 def log(msg):
     try:
@@ -16,56 +17,121 @@ def log(msg):
     except:
         pass
 
-def get_weather_yandex(slug, city_name):
-    url = f"https://yandex.ru/pogoda/{slug}"
-    headers = {"User-Agent": "Mozilla/5.0"}
 
+def normalize_code(code: str) -> str:
+    if not code:
+        return "unknown"
+    return code.split("_")[0]
+
+
+def icon_for(code: str) -> str:
+    code = normalize_code(code)
+
+    if code == "clearsky":
+        return "☀️"
+    if code == "fair":
+        return "🌤"
+    if code == "partlycloudy":
+        return "⛅️"
+    if code == "cloudy":
+        return "☁️"
+    if code == "fog":
+        return "🌫"
+
+    if code in ("rainshowers", "rain"):
+        return "🌧"
+    if code == "heavyrain":
+        return "🌧🌧"
+
+    if code in ("snow", "lightsnow", "heavysnow"):
+        return "❄️"
+
+    if code in ("sleet", "lightsleet", "heavysleet", "sleetshowers"):
+        return "🌨"
+
+    if code == "thunderstorm":
+        return "⛈"
+
+    return "🌡"
+
+
+def pick_period(data, start_h, end_h):
+    """Выбираем ближайший прогноз внутри диапазона часов"""
+    for entry in data:
+        t = datetime.fromisoformat(entry["time"].replace("Z", "+00:00")).time()
+        if time(start_h) <= t <= time(end_h):
+            details = entry["data"]
+            temp = details["instant"]["details"]["air_temperature"]
+            cond_code = (
+                details.get("next_1_hours", {})
+                       .get("summary", {})
+                       .get("symbol_code", "")
+            )
+            cond = normalize_code(cond_code)
+            emoji = icon_for(cond_code)
+            return f"{emoji} {temp}°, {cond}"
+    return "нет данных"
+
+
+def get_weather(lat, lon, city_name):
     try:
+        url = f"https://api.met.no/weatherapi/locationforecast/2.0/compact?lat={lat}&lon={lon}"
+        headers = {"User-Agent": "Mozilla/5.0 (Raspberry Pi Weather Script)"}
+
         r = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(r.text, "html.parser")
+        data = r.json()
 
-        # Температура сейчас
-        temp_now = soup.select_one(".temp__value")
-        temp_now = temp_now.text if temp_now else "?"
+        timeseries = data["properties"]["timeseries"]
 
-        # Описание сейчас
-        cond_now = soup.select_one(".link__condition")
-        cond_now = cond_now.text if cond_now else "?"
+        # Текущая погода
+        now = timeseries[0]["data"]
+        temp_now = now["instant"]["details"]["air_temperature"]
+        wind = now["instant"]["details"]["wind_speed"]
+        humidity = now["instant"]["details"]["relative_humidity"]
+        pressure = now["instant"]["details"]["air_pressure_at_sea_level"]
 
-        # Прогноз на утро/день/вечер
-        parts = soup.select(".forecast-briefly__day")
+        cond_code = (
+            now.get("next_1_hours", {})
+               .get("summary", {})
+               .get("symbol_code", "")
+        )
+        cond_now = normalize_code(cond_code)
+        emoji_now = icon_for(cond_code)
 
-        summary = f"{city_name}\n"
-        summary += f"Сейчас: {temp_now}°, {cond_now}\n"
+        # Утро / День / Вечер
+        morning = pick_period(timeseries, 6, 11)
+        day = pick_period(timeseries, 12, 17)
+        evening = pick_period(timeseries, 18, 23)
 
-        for p in parts[:3]:
-            title = p.select_one(".forecast-briefly__name")
-            temp = p.select_one(".temp__value")
-            cond = p.select_one(".forecast-briefly__condition")
-
-            if title and temp and cond:
-                summary += f"{title.text}: {temp.text}°, {cond.text}\n"
-
-        return summary + "\n"
+        return (
+            f"{city_name} {emoji_now}\n"
+            f"Сейчас: {temp_now}°, {cond_now}\n"
+            f"Ветер: {wind} м/с\n"
+            f"Давление: {pressure} мм\n"
+            f"Влажность: {humidity}%\n\n"
+            f"🌅 Утро: {morning}\n"
+            f"🌞 День: {day}\n"
+            f"🌆 Вечер: {evening}\n"
+        )
 
     except Exception as e:
-        return f"{city_name}\nОшибка парсинга: {e}\n"
+        return f"{city_name}\nОшибка: {e}\n"
+
 
 def send_daily_weather(token, chat_id):
-    log("Запуск ежедневной сводки погоды (Яндекс)")
+    log("Запуск ежедневной сводки погоды (MET Norway)")
 
     cities = [
-        ("rostov-na-donu", "Rostov-on-Don"),
-        ("bataysk", "Bataysk"),
-        ("belgrade", "Belgrade")
+        (47.2221, 39.7203, "Rostov-on-Don"),
+        (47.1383, 39.7447, "Bataysk"),
+        (44.7872, 20.4573, "Belgrade"),
     ]
 
-    result = "Ежедневная сводка погоды:\n\n"
+    result = "** Ежедневная сводка погоды: **\n\n"
 
-    for slug, name in cities:
-        result += get_weather_yandex(slug, name)
+    for lat, lon, name in cities:
+        result += get_weather(lat, lon, name) + "\n"
 
-    # Отправляем без Markdown, чтобы Telegram не ругался
     send_alert(token, chat_id, result)
 
     log("Сводка отправлена")
