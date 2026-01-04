@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from telegram import Update
 
-from scripts.check_rain import check_rain_forecast_multiple
+#from scripts.check_weather import send_daily_weather
 from scripts.check_temp import check_temperature
 from scripts.check_disk import check_disk_usage
 from scripts.check_memory import check_memory_usage
@@ -47,8 +47,9 @@ def log(message, path=LOG_PATH, max_lines=1000):
 
 # 🔧 Основной мониторинг
 def main():
-    # 🌧️ Проверка прогноза дождя по городам
-    check_rain_forecast_multiple(["Rostov-on-Don", "Bataysk"], TOKEN, CHAT_ID)
+    # 🌧️ Проверка прогноза по городам
+    #send_daily_weather(TOKEN, CHAT_ID)
+
 
     # 🌡️ Температура
     temp = check_temperature()
