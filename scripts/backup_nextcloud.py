@@ -116,7 +116,7 @@ def rotate_backups():
             shutil.rmtree(entry, ignore_errors=True)
 
 
-def main():
+def backup_nextcloud():
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     backup_path = BACKUP_DIR / timestamp
     backup_path.mkdir(parents=True, exist_ok=True)
