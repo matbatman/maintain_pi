@@ -5,13 +5,14 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from telegram import Update
 
 from scripts.get_status import get_status_text
-from scripts.check_rain import get_rain_status
+from scripts.check_weather import send_daily_weather
 
 # 🔐 Загружаем переменные окружения
 load_dotenv("/home/davidmatyushin/Documents/pi/maintain_pi/config/secrets.env")
 
 TOKEN = os.getenv("TOKEN")
 LOG_PATH = "/home/davidmatyushin/Documents/pi/maintain_pi/logs/monitor.log"
+CHAT_ID = os.getenv("CHAT_ID")
 
 # 📝 Логгер
 def log(message, path=LOG_PATH, max_lines=1000):
@@ -33,11 +34,7 @@ def log(message, path=LOG_PATH, max_lines=1000):
 
 # 🌦️ Команда /weather
 async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    cities = ["Rostov-on-Don", "Bataysk"]
-    status_list = [get_rain_status(city) for city in cities]
-    summary = "\n".join(status_list)
-    log(f"🌦️ Прогноз по запросу из Telegram:\n{summary}")
-    await update.message.reply_text(f"🌦️ Прогноз погоды:\n{summary}")
+    send_daily_weather(TOKEN, CHAT_ID)
 
 # 📡 Команда /status
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -45,11 +42,11 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     log(f"📦 Сводка по запросу из Telegram:\n{status_summary}")
     await update.message.reply_text(status_summary)
 
-
 # 🚀 Запуск Telegram-бота
 def run_bot():
     print("✅ Telegram-бот запущен и ждёт команды...")
     app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("bus", cmd_bus_today))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("weather", weather_command))
     app.run_polling()

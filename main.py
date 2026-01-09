@@ -58,13 +58,13 @@ def main():
         send_alert(TOKEN, CHAT_ID, f"🌡️ Температура {temp}°C превышает лимит {TEMP_LIMIT}°C")
 
     # 📦 Бэкап Nextcloud
-    #try:
-    #    backup_path = backup_nextcloud()
-    #    log(f"📦 Бэкап Nextcloud создан: {backup_path}")
-    #    send_alert(TOKEN, CHAT_ID, f"📦 Бэкап Nextcloud готов: {backup_path}")
-    #except Exception as e:
-    #    log(f"❌ Ошибка бэкапа Nextcloud: {e}")
-    #    send_alert(TOKEN, CHAT_ID, f"❌ Ошибка бэкапа Nextcloud: {e}")
+    try:
+        backup_path = backup_nextcloud()
+        log(f"📦 Бэкап Nextcloud создан: {backup_path}")
+        send_alert(TOKEN, CHAT_ID, f"📦 Бэкап Nextcloud готов: {backup_path}")
+    except Exception as e:
+        log(f"❌ Ошибка бэкапа Nextcloud: {e}")
+        send_alert(TOKEN, CHAT_ID, f"❌ Ошибка бэкапа Nextcloud: {e}")
 
     # 💾 Диск
     disk_alert, disk_percent = check_disk_usage(DISK_LIMIT)
