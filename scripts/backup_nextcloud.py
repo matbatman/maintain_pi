@@ -7,23 +7,21 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import shutil
 
-# === НАСТРОЙКИ ===
+# === НАСТРОЙКИ бэкапа Nextcloud ===
+BACKUP_DIR = str(os.getenv("BACKUP_DIR"))
+NEXTCLOUD_CONTAINER = str(os.getenv("NEXTCLOUD_CONTAINER"))
+DB_CONTAINER = str(os.getenv("DB_CONTAINER"))
+DB_USER = str(os.getenv("DB_USER"))
+DB_NAME = str(os.getenv("DB_NAME"))
 
-BACKUP_DIR = Path("/home/davidmatyushin/Documents/pi/backups")
+NEXTCLOUD_VOLUME = str(os.getenv("NEXTCLOUD_VOLUME"))
+RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", 2))
 
-NEXTCLOUD_CONTAINER = "nextcloud-app"
-DB_CONTAINER = "nextcloud-db"
-DB_USER = "nextcloud"
-DB_NAME = "nextcloud"
-
-NEXTCLOUD_VOLUME = "nextcloud_nextcloud"
-
-RETENTION_DAYS = 2
-
-# === ЛОГИРОВАНИЕ ===
+# === ЛОГИРОВАНИЕ бэкапа Nextcloud ===
 
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = BACKUP_DIR / "backup.log"
+
 
 logging.basicConfig(
     level=logging.INFO,

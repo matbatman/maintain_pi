@@ -7,7 +7,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from scripts.notify import send_alert
 
-ALERT_DIR = "/home/davidmatyushin/Documents/pi/maintain_pi"
+ALERT_DIR = str(os.getenv("ALERT_DIR"))
 
 
 def log(msg):
