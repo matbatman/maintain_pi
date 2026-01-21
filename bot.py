@@ -46,7 +46,6 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def run_bot():
     print("✅ Telegram-бот запущен и ждёт команды...")
     app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("bus", cmd_bus_today))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("weather", weather_command))
     app.run_polling()
