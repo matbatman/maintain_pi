@@ -8,11 +8,15 @@ from scripts.get_status import get_status_text
 from scripts.check_weather import send_daily_weather
 
 # 🔐 Загружаем переменные окружения
-load_dotenv("/home/davidmatyushin/Documents/pi/maintain_pi/config/secrets.env")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ENV_PATH = os.path.join(BASE_DIR, "config", "secrets.env")
 
-TOKEN = os.getenv("TOKEN")
-LOG_PATH = "/home/davidmatyushin/Documents/pi/maintain_pi/logs/monitor.log"
+load_dotenv(ENV_PATH)  # <-- ВАЖНО: сначала загружаем .env
+
+TOKEN = os.getenv("TOKEN")      # <-- потом читаем
 CHAT_ID = os.getenv("CHAT_ID")
+
+LOG_PATH = os.path.join(BASE_DIR, "logs", "monitor.log")
 
 # 📝 Логгер
 def log(message, path=LOG_PATH, max_lines=1000):
