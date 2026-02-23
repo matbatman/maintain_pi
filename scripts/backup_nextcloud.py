@@ -1,165 +1,166 @@
 #!/usr/bin/env python3
-import subprocess
 import os
-import sys
+import subprocess
+import datetime
 import logging
-from datetime import datetime, timedelta
 from pathlib import Path
 import shutil
+from dotenv import load_dotenv
 
-# === НАСТРОЙКИ бэкапа Nextcloud ===
-BACKUP_DIR = str(os.getenv("BACKUP_DIR"))
-NEXTCLOUD_CONTAINER = str(os.getenv("NEXTCLOUD_CONTAINER"))
-DB_CONTAINER = str(os.getenv("DB_CONTAINER"))
-DB_USER = str(os.getenv("DB_USER"))
-DB_NAME = str(os.getenv("DB_NAME"))
+# === БАЗОВЫЕ ПУТИ ===
+BASE_DIR = Path(__file__).resolve().parents[1]
+load_dotenv(BASE_DIR / "config" / "secrets.env")
 
-NEXTCLOUD_VOLUME = str(os.getenv("NEXTCLOUD_VOLUME"))
-RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", 2))
-
-# === ЛОГИРОВАНИЕ бэкапа Nextcloud ===
+BACKUP_DIR = Path.home() / "Documents" / "Backups" / "Nextcloud"
+LOG_DIR = BASE_DIR / "logs"
 
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
-LOG_FILE = BACKUP_DIR / "backup.log"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 
+LOG_FILE = LOG_DIR / "backup_nextcloud.log"
+
+# === НАСТРОЙКИ Nextcloud / MariaDB ===
+NEXTCLOUD_CONTAINER = os.getenv("NEXTCLOUD_CONTAINER", "nextcloud-app-1")
+DB_CONTAINER = os.getenv("DB_CONTAINER", "nextcloud-db-1")
+DB_USER = os.getenv("DB_USER", "nextcloud")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+DB_NAME = os.getenv("DB_NAME", "nextcloud")
+RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", 2))
+
+
+# === ЛОГИРОВАНИЕ ===
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
         logging.FileHandler(LOG_FILE),
-        logging.StreamHandler(sys.stdout),
+        logging.StreamHandler()
     ]
 )
 
 logger = logging.getLogger(__name__)
 
 
-def run(cmd, check=True, capture_output=False, text=True):
-    """Обёртка над subprocess.run с логированием ошибок."""
-    logger.info(f"Выполняю команду: {' '.join(cmd)}")
-    result = subprocess.run(
-        cmd,
-        check=False,
-        capture_output=capture_output,
-        text=text
-    )
-    if check and result.returncode != 0:
-        logger.error(f"Команда завершилась с кодом {result.returncode}")
-        if result.stdout:
-            logger.error(f"STDOUT: {result.stdout.strip()}")
-        if result.stderr:
-            logger.error(f"STDERR: {result.stderr.strip()}")
-        raise RuntimeError(f"Ошибка выполнения команды: {' '.join(cmd)}")
-    return result
+def run(cmd: list[str], check: bool = True):
+    logger.info(f"RUN: {' '.join(cmd)}")
+    return subprocess.run(cmd, check=check)
 
 
-def maintenance_mode(on: bool):
-    mode = "on" if on else "off"
-    logger.info(f"Переключаю maintenance mode: {mode}")
+def enable_maintenance():
+    logger.info("Включаю maintenance mode в Nextcloud")
     run([
-        "docker", "exec", "-u", "www-data",
-        NEXTCLOUD_CONTAINER,
-        "php", "occ", "maintenance:mode", f"--{mode}"
+        "docker", "exec", "-u", "www-data", NEXTCLOUD_CONTAINER,
+        "php", "/var/www/html/occ", "maintenance:mode", "--on"
     ])
 
 
-def backup_database(backup_path: Path):
-    db_backup = backup_path / "nextcloud_db.sql"
-    logger.info(f"Создаю дамп базы данных в {db_backup}")
-    with db_backup.open("w") as f:
-        result = subprocess.run(
-            ["docker", "exec", DB_CONTAINER, "pg_dump", "-U", DB_USER, DB_NAME],
-            check=False,
-            stdout=f,
-            stderr=subprocess.PIPE,
-            text=True
+def disable_maintenance():
+    logger.info("Выключаю maintenance mode в Nextcloud")
+    run([
+        "docker", "exec", "-u", "www-data", NEXTCLOUD_CONTAINER,
+        "php", "/var/www/html/occ", "maintenance:mode", "--off"
+    ])
+
+
+def backup_db(backup_dir: Path, timestamp: str) -> Path:
+    db_file = backup_dir / f"db_{timestamp}.sql"
+    logger.info(f"Делаю дамп БД в {db_file}")
+
+    with db_file.open("wb") as f:
+        proc = subprocess.Popen(
+            [
+                "docker", "exec", "-i", DB_CONTAINER,
+                "mysqldump",
+                f"-u{DB_USER}",
+                f"-p{DB_PASSWORD}",
+                DB_NAME,
+            ],
+            stdout=f
         )
-    if result.returncode != 0:
-        logger.error(f"Ошибка дампа БД: {result.stderr.strip()}")
-        raise RuntimeError("Не удалось создать дамп базы данных")
-    return db_backup
+        proc.wait()
+        if proc.returncode != 0:
+            raise RuntimeError("mysqldump завершился с ошибкой")
+
+    return db_file
 
 
-def backup_files(backup_path: Path):
-    files_backup = backup_path / "nextcloud_files.tar.gz"
-    logger.info(f"Архивирую файлы Nextcloud в {files_backup}")
+def backup_files(backup_dir: Path, timestamp: str) -> Path:
+    tar_file = backup_dir / f"files_{timestamp}.tar.gz"
+    logger.info(f"Архивирую файлы Nextcloud в {tar_file}")
 
     run([
-        "docker", "run", "--rm",
-        "-v", f"{NEXTCLOUD_VOLUME}:/data",
-        "-v", f"{backup_path}:/backup",
-        "alpine",
-        "tar", "czf", "/backup/nextcloud_files.tar.gz", "-C", "/data", "."
+        "docker", "exec", NEXTCLOUD_CONTAINER,
+        "tar", "czf", f"/tmp/nextcloud_{timestamp}.tar.gz",
+        "-C", "/var/www", "html"
     ])
-    return files_backup
+
+    run([
+        "docker", "cp",
+        f"{NEXTCLOUD_CONTAINER}:/tmp/nextcloud_{timestamp}.tar.gz",
+        str(tar_file)
+    ])
+
+    run([
+        "docker", "exec", NEXTCLOUD_CONTAINER,
+        "rm", f"/tmp/nextcloud_{timestamp}.tar.gz"
+    ])
+
+    return tar_file
 
 
-def rotate_backups():
-    logger.info(f"Запускаю ротацию бэкапов старше {RETENTION_DAYS} дней")
-    now = datetime.now()
-    for entry in BACKUP_DIR.iterdir():
-        if not entry.is_dir():
-            continue
-        # Пропускаем директории, не похожие на наши бэкапы (по имени)
-        # Ожидаемый формат: YYYY-MM-DD_HH-MM-SS
+def cleanup_old_backups():
+    if RETENTION_DAYS <= 0:
+        logger.info("RETENTION_DAYS <= 0, чистку старых бэкапов не делаю")
+        return
+
+    cutoff = datetime.datetime.now() - datetime.timedelta(days=RETENTION_DAYS)
+    logger.info(f"Удаляю бэкапы старше {RETENTION_DAYS} дней (до {cutoff})")
+
+    for item in BACKUP_DIR.iterdir():
         try:
-            datetime.strptime(entry.name, "%Y-%m-%d_%H-%M-%S")
-        except ValueError:
+            mtime = datetime.datetime.fromtimestamp(item.stat().st_mtime)
+        except FileNotFoundError:
             continue
 
-        mtime = datetime.fromtimestamp(entry.stat().st_mtime)
-        if now - mtime > timedelta(days=RETENTION_DAYS):
-            logger.info(f"Удаляю старый бэкап: {entry}")
-            shutil.rmtree(entry, ignore_errors=True)
+        if mtime < cutoff:
+            logger.info(f"Удаляю старый бэкап: {item}")
+            if item.is_dir():
+                shutil.rmtree(item, ignore_errors=True)
+            else:
+                item.unlink(missing_ok=True)
+
+
+def main():
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    current_backup_dir = BACKUP_DIR / timestamp
+    current_backup_dir.mkdir(parents=True, exist_ok=True)
+
+    logger.info(f"=== Старт бэкапа Nextcloud: {timestamp} ===")
+
+    try:
+        enable_maintenance()
+
+        db_file = backup_db(current_backup_dir, timestamp)
+        files_archive = backup_files(current_backup_dir, timestamp)
+
+        logger.info(f"Бэкап завершён: DB={db_file}, FILES={files_archive}")
+
+    except Exception as e:
+        logger.exception(f"Ошибка при бэкапе: {e}")
+    finally:
+        try:
+            disable_maintenance()
+        except Exception as e:
+            logger.exception(f"Не удалось выключить maintenance mode: {e}")
+
+    cleanup_old_backups()
+    logger.info("=== Бэкап Nextcloud завершён ===")
 
 
 def backup_nextcloud():
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    backup_path = BACKUP_DIR / timestamp
-    backup_path.mkdir(parents=True, exist_ok=True)
-
-    logger.info("=== Начало бэкапа Nextcloud ===")
-    logger.info(f"Каталог бэкапа: {backup_path}")
-
-    maintenance_enabled = False
-
-    try:
-        # 1. Maintenance mode ON
-        maintenance_mode(True)
-        maintenance_enabled = True
-
-        # 2. Бэкап БД
-        backup_database(backup_path)
-
-        # 3. Бэкап файлов
-        backup_files(backup_path)
-
-        logger.info(f"Бэкап успешно завершён: {backup_path}")
-
-    except Exception as e:
-        logger.error(f"ОШИБКА при выполнении бэкапа: {e}")# Не выходим, пока не попробуем выключить maintenance
-        if maintenance_enabled:
-            try:
-                maintenance_mode(False)
-            except Exception as e2:
-                logger.error(f"Доп. ошибка при выключении maintenance mode: {e2}")
-        sys.exit(1)
-
-    # 4. Maintenance mode OFF
-    if maintenance_enabled:
-        try:
-            maintenance_mode(False)
-        except Exception as e:
-            logger.error(f"Ошибка при выключении maintenance mode: {e}")
-            # Но сам бэкап уже сделан, не считаем это фаталом
-
-    # 5. Ротация
-    rotate_backups()
-
-    logger.info("=== Бэкап Nextcloud завершён ===")
-    return backup_path
+    main()
 
 
 if __name__ == "__main__":
-    main()
+    backup_nextcloud()

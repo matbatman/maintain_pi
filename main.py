@@ -1,5 +1,6 @@
 import os
 import time
+from pathlib import Path
 from dotenv import load_dotenv
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from telegram import Update
@@ -12,21 +13,31 @@ from scripts.check_internet import check_internet
 from scripts.check_uptime import get_uptime
 from scripts.check_power import get_voltage, get_throttled_status
 from scripts.notify import send_alert
-from scripts.get_status import get_status_text  # 👈 сводка состояния
+from scripts.get_status import get_status_text
 from scripts.backup_nextcloud import backup_nextcloud
 
 
-# 🔐 Загружаем переменные окружения
-load_dotenv("/home/davidmatyushin/Documents/pi/maintain_pi/config/secrets.env")
+# === ПУТИ ПРОЕКТА ===
+BASE_DIR = Path(__file__).resolve().parent
+CONFIG_DIR = BASE_DIR / "config"
+LOG_DIR = BASE_DIR / "logs"
+
+LOG_DIR.mkdir(exist_ok=True)
+
+LOG_PATH = LOG_DIR / "monitor.log"
+
+
+# === ЗАГРУЗКА СЕКРЕТОВ ===
+load_dotenv(CONFIG_DIR / "secrets.env")
 
 TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 TEMP_LIMIT = float(os.getenv("TEMP_LIMIT", 70.0))
 DISK_LIMIT = int(os.getenv("DISK_LIMIT", 90))
 MEMORY_LIMIT = int(os.getenv("MEMORY_LIMIT", 85))
-LOG_PATH = "/home/davidmatyushin/Documents/pi/maintain_pi/logs/monitor.log"
 
-# 📝 Логгер
+
+# === ЛОГГЕР ===
 def log(message, path=LOG_PATH, max_lines=1000):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
     entry = f"[{timestamp}] {message}\n"
@@ -35,7 +46,6 @@ def log(message, path=LOG_PATH, max_lines=1000):
         with open(path, "a") as f:
             f.write(entry)
 
-        # Обрезаем, если слишком длинный файл
         with open(path, "r") as f:
             lines = f.readlines()
 
@@ -45,11 +55,11 @@ def log(message, path=LOG_PATH, max_lines=1000):
     except Exception as e:
         print(f"⚠️ Ошибка логгера: {e}")
 
-# 🔧 Основной мониторинг
-def main():
-    # 🌧️ Проверка прогноза по городам
-    send_daily_weather(TOKEN, CHAT_ID)
 
+# === ОСНОВНОЙ МОНИТОРИНГ ===
+def main():
+    # 🌧️ Погода
+    send_daily_weather(TOKEN, CHAT_ID)
 
     # 🌡️ Температура
     temp = check_temperature()
@@ -61,7 +71,7 @@ def main():
     try:
         backup_path = backup_nextcloud()
         log(f"📦 Бэкап Nextcloud создан: {backup_path}")
-        send_alert(TOKEN, CHAT_ID, f"📦 Бэкап Nextcloud готов: {backup_path}")
+        send_alert(TOKEN, CHAT_ID, f"📦 Бэкап Nextcloud готов")
     except Exception as e:
         log(f"❌ Ошибка бэкапа Nextcloud: {e}")
         send_alert(TOKEN, CHAT_ID, f"❌ Ошибка бэкапа Nextcloud: {e}")
@@ -100,11 +110,11 @@ def main():
     status_summary = get_status_text()
     log(f"📦 Сводка состояния:\n{status_summary}")
 
-# 🚀 Защита от падения
+
+# === ЗАЩИТА ОТ ПАДЕНИЯ ===
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
         log(f"❌ Ошибка: {e}")
         send_alert(TOKEN, CHAT_ID, f"❌ Ошибка мониторинга:\n{e}")
-
