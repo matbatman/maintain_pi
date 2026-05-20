@@ -15,6 +15,7 @@ from scripts.check_power import get_voltage, get_throttled_status
 from scripts.notify import send_alert
 from scripts.get_status import get_status_text
 from scripts.backup_nextcloud import backup_nextcloud
+from scripts.db import write_metrics
 
 
 # === ПУТИ ПРОЕКТА ===
@@ -89,7 +90,8 @@ def main():
         send_alert(TOKEN, CHAT_ID, f"🧠 Память занята на {mem_percent}%")
 
     # 📡 Интернет
-    if check_internet():
+    internet_ok = check_internet()
+    if internet_ok:
         log("📡 Интернет подключен")
     else:
         send_alert(TOKEN, CHAT_ID, "📡 Нет подключения к интернету")
@@ -109,6 +111,21 @@ def main():
     # 📊 Общая сводка
     status_summary = get_status_text()
     log(f"📦 Сводка состояния:\n{status_summary}")
+
+    # === ЗАПИСЬ МЕТРИК В POSTGRES ===
+    try:
+        write_metrics(
+            temperature=temp,
+            disk_percent=disk_percent,
+            memory_percent=mem_percent,
+            uptime_hours=uptime_hours,
+            voltage=voltage,
+            throttled=throttled,
+            internet_ok=internet_ok,
+            backup_ok=("Ошибка" not in status_summary)
+        )
+    except Exception as e:
+        log(f"❌ Ошибка записи метрик в БД: {e}")
 
 
 # === ЗАЩИТА ОТ ПАДЕНИЯ ===
