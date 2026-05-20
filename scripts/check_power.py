@@ -2,10 +2,12 @@ import subprocess
 
 def get_voltage():
     try:
-        output = subprocess.check_output(["vcgencmd", "measure_volts"], text=True)
-        return output.strip()
+        output = subprocess.check_output(["vcgencmd", "measure_volts"], text=True).strip()
+        value = output.replace("volt=", "").replace("V", "")
+        return float(value)
     except Exception:
-        return "⚠️ Не удалось получить напряжение"
+        return None
+
 
 def get_throttled_status():
     try:
