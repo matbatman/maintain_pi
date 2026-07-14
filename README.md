@@ -1,10 +1,10 @@
 # 🖥️ Pi Monitor Bot  
-Мониторинг температуры и диска на Raspberry Pi с уведомлениями в Telegram.
+Мониторинг температуры и диска на Raspberry Pi с уведомлениями в Bark.
 
 ## 🚀 Возможности  
 - Проверка температуры CPU через `vcgencmd`  
 - Проверка заполненности диска  
-- Уведомления в Telegram при превышении лимитов  
+- Уведомления в Bark при превышении лимитов  
 - Логирование событий в `monitor.log`
 
 ## 📁 Структура проекта 
@@ -34,8 +34,7 @@ pip3 install python-dotenv requests
  
 3. Создай файл config/secrets.env
 ``` env
-TOKEN=твой_токен_бота  
-CHAT_ID=твой_chat_id  
+TOKEN=твой_токен_bark
 TEMP_LIMIT=70.0  
 DISK_LIMIT=90
 ```  

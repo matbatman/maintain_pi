@@ -118,7 +118,7 @@ def get_weather(lat, lon, city_name):
         return f"{city_name}\nОшибка: {e}\n"
 
 
-def send_daily_weather(token, chat_id):
+def send_daily_weather(token):
     log("Запуск ежедневной сводки погоды (MET Norway)")
 
     cities = [
@@ -132,6 +132,6 @@ def send_daily_weather(token, chat_id):
     for lat, lon, name in cities:
         result += get_weather(lat, lon, name) + "\n"
 
-    send_alert(token, chat_id, result)
+    send_alert(token, result)
 
     log("Сводка отправлена")

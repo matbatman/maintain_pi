@@ -1,6 +1,6 @@
 import requests
 
-def send_alert(token, chat_id, message):
+def send_alert(token, message):
     try:
         url = f"https://api.day.app/{token}/${message}"
 
